@@ -343,6 +343,78 @@ app.get('/users/role/:email', async (req, res) => {
       const result = await ordersCollection.deleteOne(query)
       res.send(result)
     })
+
+
+    app.get('/admin-stat',verifyToken,verifyAdmin, async (req, res) => {
+      // get total user, total plants
+    const totalUser = await userCollection.estimatedDocumentCount()
+     const totalPlants = await plantsCollection.estimatedDocumentCount()
+     const allOrder = await ordersCollection.find().toArray()
+     const totalOrders = allOrder.length
+     const totalPrice = allOrder.reduce((sum, order) => sum + order.price, 0)
+ // const myData = {
+      //   date: '11/01/2025',
+      //   quantity: 12,
+      //   price: 1500,
+      //   order: 3,
+      // }
+      // generate chart data
+      const chartData = await ordersCollection
+        .aggregate([
+          { $sort: { _id: -1 } },
+          {
+            $addFields: {
+              _id: {
+                $dateToString: {
+                  format: '%Y-%m-%d',
+                  date: { $toDate: '$_id' },
+                },
+              },
+              quantity: {
+                $sum: '$quantity',
+              },
+              price: { $sum: '$price' },
+              order: { $sum: 1 },
+            },
+          },
+
+          {
+            $project: {
+              _id: 0,
+              date: '$_id',
+              quantity: 1,
+              order: 1,
+              price: 1,
+            },
+          },
+        ])
+        .toArray()
+
+console.log(chartData)
+      // get total revenue, total order
+      const ordersDetails = await ordersCollection
+        .aggregate([
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: '$price' },
+              totalOrder: { $sum: 1 },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+            },
+          },
+        ])
+        .next()
+    res.send({totalPlants,totalUser,...ordersDetails})
+    })
+    
+
+
+
+    
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 })
     console.log(
